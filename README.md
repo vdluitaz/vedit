@@ -31,8 +31,8 @@
 ### 📦 Features (Planned)
 
 - [x] Terminal-based navigation and editing
-- [ ] Block/columnar selection and manipulation
-- [ ] Syntax highlighting via Sublime-compatible themes
+- [x]Block/columnar selection and manipulation
+- [x] Syntax highlighting via Sublime-compatible themes
 - [ ] Configurable keybindings and editor behavior
 - [ ] REXX macro execution
 - [ ] Plugin support for extensions
@@ -57,9 +57,7 @@ cargo run -- path/to/file.txt
 
 ### ⚠️ Known Issues
 
-- **Rendering Issues on Windows:** Some terminal emulators on Windows (like Git Bash or older versions of `cmd.exe`) may experience rendering issues, causing the UI to appear garbled. For the best experience, it is recommended to use **[Windows Terminal](https://aka.ms/terminal)** or a modern PowerShell environment.
-
----
+   Lot's - it's still very early!
 
 ### 📚 Documentation
 
