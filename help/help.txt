@@ -57,6 +57,7 @@ Editing:
 Selections:
 - Ctrl+L: Select current line (first press), extend to current line (subsequent presses)
 - Ctrl+B: Select rectangular block (first press starts, second press completes)
+- Ctrl+F: Fill selected area with a character (only works if area is selected)
 - Ctrl+U: Clear selection
 
 Other:

@@ -337,6 +337,11 @@ pub fn run_editor(
                                         KeyCode::Right => editor.move_cursor(1, 0),
                                         KeyCode::Char('l') => editor.select_line(),
                                         KeyCode::Char('b') => editor.select_block(),
+                                        KeyCode::Char('f') => {
+                                            if editor.selection_start.is_some() {
+                                                editor.prompt = Some(("Enter character to fill selection:".to_string(), PromptType::Fill, None));
+                                            }
+                                        }
                                         KeyCode::Char('u') => {
                                             editor.selection_start = None;
                                             editor.selection_end = None;
