@@ -350,7 +350,7 @@ pub fn run_editor(
                                             let c = if key.modifiers.contains(KeyModifiers::SHIFT) {
                                                 c.to_uppercase().next().unwrap_or(c)
                                             } else {
-                                                c.to_lowercase().next().unwrap_or(c)
+                                                c
                                             };
                                             editor.type_char(c);
                                         }
@@ -390,7 +390,7 @@ pub fn run_editor(
                                             let c = if key.modifiers.contains(KeyModifiers::SHIFT) {
                                                 c.to_uppercase().next().unwrap_or(c)
                                             } else {
-                                                c.to_lowercase().next().unwrap_or(c)
+                                                c
                                             };
                                             editor.type_char(c);
                                         }

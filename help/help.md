@@ -49,7 +49,7 @@ The command line is accessed by pressing the Home key. Type commands and press E
 
 ### Editing
 
-- Type characters to insert text (Shift controls case: uppercase/lowercase)
+- Type characters to insert text (Shift forces uppercase, otherwise respects terminal case)
 - Backspace: Delete character before cursor
 - Delete: Delete character at cursor
 - Enter: Insert new line
