@@ -39,32 +39,6 @@
 
 ---
 
-### 🗺️ Development Roadmap
-
-#### Command Line
-- [ ] **sort** - Sorts targets (block, all) based on column positions (up to two), e.g., `sort block 11-17`
-- [ ] **srch** - Simple search
-- [ ] **find replace** - Find and replace functionality
-- [ ] **undo** - Undo last action
-- [ ] **chng** - Change command
-- [x] **lnum** - Toggle line number display in right margin (variable width based on file lines)
-- [x] **goto** - Go to line/position
-- [ ] **regx** - Regular expression support
-- [ ] **help** - Help system with 3 main sections:
-  - `.vedit.conf` configuration
-  - Command line commands
-  - Text area keys
-
-#### Text Area
-- [ ] **Shift+F7** - Key binding for advanced operations
-- [ ] **Shift+F8** - Key binding for advanced operations
-
-#### Makro (First Two Examples)
-- [ ] **capitals.kex** - Macro for capitalizing text
-- [ ] **seqnum.kex** - Macro for sequential numbering
-
----
-
 ### 🧪 Getting Started
 
 ```bash
