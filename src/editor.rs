@@ -393,6 +393,84 @@ impl Editor {
         self.selection_mode = SelectionMode::None;
     }
 
+    pub fn move_block_right(&mut self) {
+        if let (Some(start), Some(end)) = (self.selection_start, self.selection_end) {
+            self.save_state();
+            let min_y = start.0.min(end.0);
+            let max_y = start.0.max(end.0);
+            let min_x = start.1.min(end.1);
+            let max_x = start.1.max(end.1);
+            for y in min_y..=max_y {
+                if y < self.buffer.len() {
+                    let line = &mut self.buffer[y];
+                    if self.overwrite_mode {
+                        if self.selection_mode == SelectionMode::Block {
+                            if max_x + 1 < line.width() {
+                                let remove_byte = column_to_byte_index(line, max_x + 1);
+                                line.remove(remove_byte);
+                                let insert_byte = column_to_byte_index(line, min_x);
+                                line.insert(insert_byte, ' ');
+                            }
+                        } else {
+                            if !line.is_empty() {
+                                line.remove(0);
+                                line.push(' ');
+                            }
+                        }
+                    } else {
+                        let insert_byte = column_to_byte_index(line, min_x);
+                        line.insert(insert_byte, ' ');
+                    }
+                }
+            }
+            let new_min_x = if self.overwrite_mode { min_x + 1 } else { min_x };
+            let new_max_x = if self.overwrite_mode { max_x + 1 } else { max_x };
+            self.selection_start = Some((min_y, new_min_x));
+            self.selection_end = Some((max_y, new_max_x));
+            self.modified = true;
+        }
+    }
+
+    pub fn move_block_left(&mut self) {
+        if let (Some(start), Some(end)) = (self.selection_start, self.selection_end) {
+            self.save_state();
+            let min_y = start.0.min(end.0);
+            let max_y = start.0.max(end.0);
+            let min_x = start.1.min(end.1);
+            let max_x = start.1.max(end.1);
+            for y in min_y..=max_y {
+                if y < self.buffer.len() {
+                    let line = &mut self.buffer[y];
+                    if self.overwrite_mode {
+                        if self.selection_mode == SelectionMode::Block {
+                            if min_x > 0 {
+                                let remove_byte = column_to_byte_index(line, min_x - 1);
+                                line.remove(remove_byte);
+                                let insert_byte = column_to_byte_index(line, max_x);
+                                line.insert(insert_byte, ' ');
+                            }
+                        } else {
+                            if !line.is_empty() {
+                                line.pop();
+                                line.insert(0, ' ');
+                            }
+                        }
+                    } else {
+                        if min_x < line.width() && line.chars().nth(min_x) == Some(' ') {
+                            let remove_byte = column_to_byte_index(line, min_x);
+                            line.remove(remove_byte);
+                        }
+                    }
+                }
+            }
+            let new_min_x = if self.overwrite_mode && min_x > 0 { min_x - 1 } else { min_x };
+            let new_max_x = if self.overwrite_mode && max_x > 0 { max_x - 1 } else { max_x };
+            self.selection_start = Some((min_y, new_min_x));
+            self.selection_end = Some((max_y, new_max_x));
+            self.modified = true;
+        }
+    }
+
     pub fn page_up(&mut self) {
         if self.editor_visible_height > 0 {
             let page_height = self.editor_visible_height - 1; // Keep one line for context

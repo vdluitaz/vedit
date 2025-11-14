@@ -60,6 +60,8 @@ The command line is accessed by pressing the Home key. Type commands and press E
 - Ctrl+L: Select current line (first press), extend to current line (subsequent presses)
 - Ctrl+B: Select rectangular block (first press starts, second press completes)
 - Ctrl+F: Fill selected area with a character (only works if area is selected)
+- Shift+F7: Move selected block left
+- Shift+F8: Move selected block right
 - Ctrl+U: Clear selection
 
 ### Other

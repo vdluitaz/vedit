@@ -359,6 +359,20 @@ pub fn run_editor(
                                         KeyCode::Backspace => editor.backspace(),
                                         _ => {} // Ignore other keys in editor mode
                                     }
+                                } else if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                    match key.code {
+                                        KeyCode::F(7) => {
+                                            if editor.selection_start.is_some() {
+                                                editor.move_block_left();
+                                            }
+                                        }
+                                        KeyCode::F(8) => {
+                                            if editor.selection_start.is_some() {
+                                                editor.move_block_right();
+                                            }
+                                        }
+                                        _ => {}
+                                    }
                                 } else {
                                     match key.code {
                                         KeyCode::Up => editor.move_cursor(0, -1),
