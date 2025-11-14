@@ -81,6 +81,3 @@ Pull requests, issues, and feedback are welcome! See `CONTRIBUTING.md` for guide
 MIT License. See `LICENSE` for details.
 
 ---
-
-Would you like help scaffolding the actual Rust project structure (`src/main.rs`, `lib.rs`, modules for UI, config, etc.) or drafting the `architecture.md` file next?
-
