@@ -48,7 +48,7 @@ Navigation:
 - Home: Toggle between text area and command line
 
 Editing:
-- Type characters to insert text (Shift forces uppercase, otherwise respects terminal case)
+- Type characters to insert text (case controlled by terminal: Shift and Caps Lock)
 - Backspace: Delete character before cursor
 - Delete: Delete character at cursor
 - Enter: Insert new line
