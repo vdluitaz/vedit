@@ -31,7 +31,7 @@
 ### 📦 Features (Planned)
 
 - [x] Terminal-based navigation and editing
-- [x]Block/columnar selection and manipulation
+- [x] Block/columnar selection and manipulation
 - [x] Syntax highlighting via Sublime-compatible themes
 - [ ] Configurable keybindings and editor behavior
 - [ ] REXX macro execution
