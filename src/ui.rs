@@ -88,6 +88,7 @@ pub fn run_editor(
     filename: Option<String>,
 ) {
     let mut editor = Editor::new(&buffer, &config);
+    editor.filename = filename.clone();
     if let Err(e) = enable_raw_mode() {
         eprintln!("Failed to enable raw mode: {}", e);
         return;
@@ -403,13 +404,28 @@ pub fn run_editor(
                                          let cmd = editor.command_buffer.trim().to_string();
                                          if !cmd.is_empty() {
                                              editor.add_to_history(cmd.clone());
-                                             if cmd == "q" || cmd == "quit" {
-                                                 if !editor.modified {
-                                                     editor.quit = true;
-                                                 } else {
-                                                      editor.prompt = Some(("Changes have been made. Abort? (y/n)".to_string(), PromptType::Confirm, Some(PromptAction::Quit)));
-                                                 }
-                                             } else if cmd == "s" || cmd == "save" {
+                                              if cmd == "q" || cmd == "quit" {
+                                                  if editor.read_only {
+                                                      // Restore original document
+                                                      if let Some(buf) = editor.original_buffer.take() {
+                                                          editor.buffer = buf;
+                                                      }
+                                                      editor.filename = editor.original_filename.take();
+                                                      editor.cursor_y = editor.original_cursor_y;
+                                                      editor.cursor_x = editor.original_cursor_x;
+                                                      editor.scroll_y = editor.original_scroll_y;
+                                                      editor.scroll_x = editor.original_scroll_x;
+                                                      editor.modified = editor.original_modified;
+                                                      editor.read_only = false;
+                                                      editor.focus = Focus::Editor;
+                                                      editor.prompt = Some(("Returned to document.".to_string(), PromptType::Message, None));
+                                                  } else if !editor.modified {
+                                                      editor.quit = true;
+                                                  } else {
+                                                       editor.prompt = Some(("Changes have been made. Abort? (y/n)".to_string(), PromptType::Confirm, Some(PromptAction::Quit)));
+                                                  }
+                                               }
+                                              else if cmd == "s" || cmd == "save" {
                                                  match save_file(&mut editor, &filename) {
                                                      Ok(()) => {
                                                          editor.prompt = Some(("File saved.".to_string(), PromptType::Message, None));
@@ -438,10 +454,40 @@ pub fn run_editor(
                                                      } else {
                                                          editor.prompt = Some(("Line number out of range.".to_string(), PromptType::Message, None));
                                                      }
-                                                 } else {
-                                                     editor.prompt = Some(("Invalid line number.".to_string(), PromptType::Message, None));
-                                                 }
-                                             } else {
+                                                  } else {
+                                                      editor.prompt = Some(("Invalid line number.".to_string(), PromptType::Message, None));
+                                                  }
+                                              } else if cmd == "help" {
+                                                  // Save current state
+                                                  editor.original_buffer = Some(editor.buffer.clone());
+                                                  editor.original_filename = editor.filename.clone();
+                                                  editor.original_cursor_y = editor.cursor_y;
+                                                  editor.original_cursor_x = editor.cursor_x;
+                                                  editor.original_scroll_y = editor.scroll_y;
+                                                  editor.original_scroll_x = editor.scroll_x;
+                                                  editor.original_modified = editor.modified;
+
+                                                  // Load help text
+                                                  match std::fs::read_to_string("help/help.txt") {
+                                                      Ok(content) => {
+                                                          editor.buffer = content.lines().map(|s| s.to_string()).collect();
+                                                          if editor.buffer.is_empty() {
+                                                              editor.buffer.push(String::new());
+                                                          }
+                                                          editor.cursor_y = 0;
+                                                          editor.cursor_x = 0;
+                                                          editor.scroll_y = 0;
+                                                          editor.scroll_x = 0;
+                                                          editor.modified = false;
+                                                          editor.read_only = true;
+                                                          editor.focus = Focus::Editor;
+                                                          editor.prompt = Some(("Help mode - use 'q' to return to document".to_string(), PromptType::Message, None));
+                                                      }
+                                                      Err(_) => {
+                                                          editor.prompt = Some(("Help file not found.".to_string(), PromptType::Message, None));
+                                                      }
+                                                  }
+                                              } else {
                                                   editor.prompt = Some((format!("Unknown command: {}", cmd), PromptType::Message, None));
                                               }
                                          }

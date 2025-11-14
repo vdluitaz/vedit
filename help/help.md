@@ -1,0 +1,73 @@
+# VEDIT Help
+
+This is the help system for VEDIT, a terminal-based text editor inspired by THE and KEDIT.
+
+## Configuration
+
+VEDIT is configured via `~/.vedit.toml`. The main settings are:
+
+- `theme`: Syntax highlighting theme (e.g., "base16-pop")
+- `tab_width`: Number of spaces for tab (default 4)
+- `syntax_map`: File extension to syntax mapping (e.g., rs = "Rust", py = "Python")
+
+Example `~/.vedit.toml`:
+```toml
+theme = "base16-pop"
+tab_width = 4
+[syntax_map]
+rs = "Rust"
+py = "Python"
+md = "Markdown"
+```
+
+## Command Line
+
+The command line is accessed by pressing the Home key. Type commands and press Enter.
+
+### Available Commands
+
+- `q`/`quit`: Exit the editor. If changes are unsaved, prompts for confirmation.
+- `s`/`save`: Save the current file.
+- `lnum`: Toggle line number display in the left margin.
+- `goto <line>`: Jump to the specified line number (1-based).
+- `help`: Open this help file (read-only mode).
+
+### Command Line Navigation
+
+- Up/Down arrows: Navigate command history
+- Backspace: Delete characters
+- Enter: Execute command
+- Home: Return to text editing
+
+## Text Area
+
+### Navigation
+
+- Arrow keys: Move cursor
+- PgUp/PgDn: Scroll up/down by page
+- Home: Toggle between text area and command line
+
+### Editing
+
+- Type characters to insert text
+- Backspace: Delete character before cursor
+- Delete: Delete character at cursor
+- Enter: Insert new line
+- Tab: Insert spaces according to `tab_width`
+
+### Selections
+
+- Ctrl+L: Select current line (first press), extend to current line (subsequent presses)
+- Ctrl+B: Select rectangular block (first press starts, second press completes)
+- Ctrl+U: Clear selection
+
+### Other
+
+- Ctrl+Up/Down/Left/Right: Move cursor (same as arrows)
+- Insert: Toggle overwrite mode
+
+## Macros
+
+Macros are not yet implemented. This section is a placeholder for future functionality.
+
+For more information, see the documentation in the `docs/` directory.

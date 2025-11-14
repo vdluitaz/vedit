@@ -51,6 +51,15 @@ pub struct Editor {
     pub overwrite_mode: bool,
     pub modified: bool,
     pub quit: bool,
+    pub read_only: bool,
+    pub filename: Option<String>,
+    pub original_buffer: Option<Vec<String>>,
+    pub original_filename: Option<String>,
+    pub original_cursor_y: usize,
+    pub original_cursor_x: usize,
+    pub original_scroll_y: usize,
+    pub original_scroll_x: usize,
+    pub original_modified: bool,
     pub prompt: Option<(String, PromptType, Option<PromptAction>)>,
     pub selection_start: Option<(usize, usize)>,
     pub selection_end: Option<(usize, usize)>,
@@ -101,6 +110,15 @@ impl Editor {
             overwrite_mode: true,
             modified: false,
             quit: false,
+            read_only: false,
+            filename: None,
+            original_buffer: None,
+            original_filename: None,
+            original_cursor_y: 0,
+            original_cursor_x: 0,
+            original_scroll_y: 0,
+            original_scroll_x: 0,
+            original_modified: false,
             prompt: None,
              selection_start: None,
              selection_end: None,
@@ -164,6 +182,7 @@ impl Editor {
     }
 
     pub fn type_char(&mut self, c: char) {
+        if self.read_only { return; }
         // Save state before making changes
         self.save_state();
         
@@ -193,6 +212,7 @@ impl Editor {
     }
 
     pub fn delete_char(&mut self) {
+        if self.read_only { return; }
         // Save state before making changes
         self.save_state();
         
@@ -214,6 +234,7 @@ impl Editor {
     }
 
     pub fn backspace(&mut self) {
+        if self.read_only { return; }
         // Save state before making changes
         self.save_state();
         
@@ -257,6 +278,7 @@ impl Editor {
     }
 
     pub fn insert_newline(&mut self) {
+        if self.read_only { return; }
         // Save state before making changes
         self.save_state();
         
