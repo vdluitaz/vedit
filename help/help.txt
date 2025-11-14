@@ -34,7 +34,7 @@ Available commands:
 - help: Open this help file (read-only mode).
 
 In command line mode:
-- Up/Down arrows: Navigate command history
+- Up/Down arrows: Navigate command history (recall previous/next commands)
 - Backspace: Delete characters
 - Enter: Execute command
 - Home: Return to text editing

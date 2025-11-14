@@ -34,7 +34,7 @@ The command line is accessed by pressing the Home key. Type commands and press E
 
 ### Command Line Navigation
 
-- Up/Down arrows: Navigate command history
+- Up/Down arrows: Navigate command history (recall previous/next commands)
 - Backspace: Delete characters
 - Enter: Execute command
 - Home: Return to text editing
