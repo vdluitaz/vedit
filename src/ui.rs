@@ -346,7 +346,14 @@ pub fn run_editor(
                                             editor.selection_start = None;
                                             editor.selection_end = None;
                                         }
-                                        KeyCode::Char(c) => editor.type_char(c),
+                                        KeyCode::Char(c) => {
+                                            let c = if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                                c.to_uppercase().next().unwrap_or(c)
+                                            } else {
+                                                c.to_lowercase().next().unwrap_or(c)
+                                            };
+                                            editor.type_char(c);
+                                        }
                                         KeyCode::Tab => {
                                             let spaces = config.tab_width - (editor.cursor_x % config.tab_width);
                                             for _ in 0..spaces {
@@ -379,7 +386,14 @@ pub fn run_editor(
                                         KeyCode::Down => editor.move_cursor(0, 1),
                                         KeyCode::Left => editor.move_cursor(-1, 0),
                                         KeyCode::Right => editor.move_cursor(1, 0),
-                                        KeyCode::Char(c) => editor.type_char(c),
+                                        KeyCode::Char(c) => {
+                                            let c = if key.modifiers.contains(KeyModifiers::SHIFT) {
+                                                c.to_uppercase().next().unwrap_or(c)
+                                            } else {
+                                                c.to_lowercase().next().unwrap_or(c)
+                                            };
+                                            editor.type_char(c);
+                                        }
                                         KeyCode::Tab => {
                                             let spaces = config.tab_width - (editor.cursor_x % config.tab_width);
                                             for _ in 0..spaces {
