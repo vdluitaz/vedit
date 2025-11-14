@@ -5,7 +5,6 @@ docs/
 last-prompt.txt
 src*.rs*
 target/
-valid.txt
 vedit.log
 virtual-cursor.md
 macros/
