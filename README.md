@@ -1,6 +1,6 @@
 ## 📝 VEDIT: A Rust-Based Text Editor Inspired by THE and KEDIT
 
-**VEDIT** is a terminal-first text editor written in Rust, inspired by [The Hessling Editor (THE)](https://hessling-editor.sourceforge.net/), Mansfiled Software Group's [Kedit](https://www.kedit.com), and a <u>little bit</u> of [vi](https://www.vim.org). It aims to bring modern performance, configurability, and scripting to a classic editing experience—optimized for <u>block/columnar operations</u>, syntax highlighting, and REXX macro support. 
+**VEDIT** is a terminal-first text editor written in Rust, inspired by [The Hessling Editor (THE)](https://hessling-editor.sourceforge.net/), Mansfiled Software Group's [Kedit](https://www.kedit.com), and a <u>little bit</u> of [vi](https://www.vim.org). It aims to bring modern performance, configurability, and scripting to a classic editing experience—optimized for <u>block/columnar operations</u>, syntax highlighting, and <del>REXX macro support</del> AI integration. 
 
 ---
 
@@ -10,7 +10,7 @@
 - 🖥️ Focus on terminal-based (TUI) editing (no GUI/X11 dependency, no mouse)
 - 🧩 Support block/columnar editing and customizable keybindings
 - 🎨 Integrate syntax highlighting with user-defined themes
-- 🧠 Enable REXX scripting via a native interpreter
+- 🧠 Enable AI integration to perform functionality previously provided by REXX macros
 - 🛠️ Provide clear documentation and reproducible workflows
 
 ---
@@ -23,7 +23,7 @@
 | Syntax Highlighting | Language-aware coloring                   | `syntect`         |
 | Config System       | User preferences, themes, keymaps         | `serde`, `toml`   |
 | File I/O            | Open/save, buffer management              | `std::fs`         |
-| REXX Integration    | Macro scripting support                   | FFI to `Regina`   |
+| AI Integration      | Multiple model support                    | TBD               |
 | Plugin System (opt) | Extensibility via dynamic loading         | `libloading` or `wasmer` |
 
 ---
@@ -33,8 +33,8 @@
 - [x] Terminal-based navigation and editing
 - [x] Block/columnar selection and manipulation
 - [x] Syntax highlighting via Sublime-compatible themes
+- [ ] AI CLI
 - [ ] Configurable keybindings and editor behavior
-- [ ] REXX macro execution
 - [ ] Plugin support for extensions
 
 ---
@@ -63,7 +63,7 @@ cargo run -- path/to/file.txt
 
 - `docs/architecture.md` – System design and module breakdown
 - `docs/config.md` – Configuration options and examples
-- `docs/rexx.md` – REXX macro integration guide
+- `docs/ai.md` – AI integration guide
 - `docs/syntax.md` – Syntax highlighting setup
 
 ---
