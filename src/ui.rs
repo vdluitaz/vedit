@@ -454,10 +454,16 @@ pub fn run_editor(
                                                          editor.prompt = Some((format!("Save failed: {}", e), PromptType::Message, None));
                                                      }
                                                  }
-                                             } else if cmd == "lnum" {
-                                                 editor.show_line_numbers = !editor.show_line_numbers;
-                                                 editor.prompt = Some(("Line numbers toggled.".to_string(), PromptType::Message, None));
-                                             } else if cmd.starts_with("goto ") {
+} else if cmd == "undo" {
+                                                    if editor.undo() {
+                                                        editor.prompt = Some(("Undid last change.".to_string(), PromptType::Message, None));
+                                                    } else {
+                                                        editor.prompt = Some(("Nothing to undo.".to_string(), PromptType::Message, None));
+                                                    }
+                                                } else if cmd == "lnum" {
+                                                  editor.show_line_numbers = !editor.show_line_numbers;
+                                                  editor.prompt = Some(("Line numbers toggled.".to_string(), PromptType::Message, None));
+                                                } else if cmd.starts_with("goto ") {
                                                  let arg = &cmd[5..];
                                                  if let Ok(line_num) = arg.trim().parse::<usize>() {
                                                      if line_num >= 1 && line_num <= editor.buffer.len() {

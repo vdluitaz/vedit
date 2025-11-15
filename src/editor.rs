@@ -532,6 +532,13 @@ impl Editor {
         // Save current buffer state to undo history
         let current_state = self.buffer.clone();
         
+        // Don't save if the current state is identical to the last saved state
+        if let Some(last_state) = self.undo_history.last() {
+            if *last_state == current_state {
+                return;
+            }
+        }
+        
         // If we're not at the latest state, truncate history
         if self.undo_index < self.undo_history.len() - 1 {
             self.undo_history.truncate(self.undo_index + 1);
@@ -543,7 +550,6 @@ impl Editor {
         
         // Update last save state
         self.last_save_state = Some(self.buffer.clone());
-        self.modified = false;
     }
 
     pub fn undo(&mut self) -> bool {
