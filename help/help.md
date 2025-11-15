@@ -69,8 +69,8 @@ The command line is accessed by pressing the Home key. Type commands and press E
 - Ctrl+Up/Down/Left/Right: Move cursor (same as arrows)
 - Insert: Toggle overwrite mode
 
-## Macros
+## AI Integration
 
-Macros are not yet implemented. This section is a placeholder for future functionality.
+AI integration is not yet implemented. This section is a placeholder for future functionality.
 
 For more information, see the documentation in the `docs/` directory.

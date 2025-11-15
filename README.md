@@ -23,7 +23,7 @@
 | Syntax Highlighting | Language-aware coloring                   | `syntect`         |
 | Config System       | User preferences, themes, keymaps         | `serde`, `toml`   |
 | File I/O            | Open/save, buffer management              | `std::fs`         |
-| AI Integration      | Multiple model support                    | TBD               |
+| AI Integration      | Multiple model support                    | `reqwest`           |
 | Plugin System (opt) | Extensibility via dynamic loading         | `libloading` or `wasmer` |
 
 ---
