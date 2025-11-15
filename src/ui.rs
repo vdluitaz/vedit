@@ -371,6 +371,7 @@ pub fn run_editor(
                                                 editor.move_block_right();
                                             }
                                         }
+                                        KeyCode::Char(c) => editor.type_char(c),
                                         _ => {}
                                     }
                                 } else {
