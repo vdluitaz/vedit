@@ -22,12 +22,26 @@ pub fn send_prompt(
     user_prompt: &str,
     text: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
+    let system_prompt = "Modify the following text according to the user's request. Return only the modified text, no explanations or additional content.";
+    send_prompt_with_system(config, Some(system_prompt), user_prompt, text)
+}
+
+pub fn send_prompt_with_system(
+    config: &EditorConfig,
+    system_prompt: Option<&str>,
+    user_prompt: &str,
+    text: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     let ai = config.ai.as_ref().ok_or("No AI config")?;
     let default_id = ai.default_model.as_ref().ok_or("No default model")?;
     let model = ai.models.iter().find(|m| &m.id == default_id).ok_or("Model not found")?;
 
-    let system_prompt = "Modify the following text according to the user's request. Return only the modified text, no explanations or additional content.";
-    let full_message = format!("{}\n\nUser request: {}\n\nText:\n{}", system_prompt, user_prompt, text);
+    let system_msg = system_prompt.unwrap_or("Modify the following text according to the user's request. Return only the modified text, no explanations or additional content.");
+    let full_message = if !text.is_empty() {
+        format!("{}\n\nUser request: {}\n\nText:\n{}", system_msg, user_prompt, text)
+    } else {
+        format!("{}\n\n{}", system_msg, user_prompt)
+    };
 
     let request = AnythingLLMRequest {
         message: full_message,

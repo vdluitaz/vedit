@@ -2,6 +2,7 @@ use crate::ai;
 use crate::config::EditorConfig;
 use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, SearchScope};
 use crate::syntax::SyntaxEngine;
+use std::fs;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crossterm::{
     cursor::SetCursorStyle,
@@ -80,6 +81,48 @@ fn save_file(editor: &mut Editor, filename: &Option<String>) -> Result<(), Box<d
     } else {
         Err("No filename specified".into())
     }
+}
+
+fn load_prompt_file(prompt_name: &str) -> Result<(String, String), Box<dyn std::error::Error>> {
+    let prompt_path = format!("prompts/{}.prompt", prompt_name);
+    let content = fs::read_to_string(&prompt_path)?;
+    
+    // Parse the prompt file to extract system and user sections
+    let mut system_prompt = String::new();
+    let mut user_prompt = String::new();
+    let mut current_section = String::new();
+    
+    for line in content.lines() {
+        if line.trim() == "[system]" {
+            current_section = "system".to_string();
+            continue;
+        } else if line.trim() == "[user]" {
+            current_section = "user".to_string();
+            continue;
+        }
+        
+        match current_section.as_str() {
+            "system" => {
+                if !system_prompt.is_empty() {
+                    system_prompt.push('\n');
+                }
+                system_prompt.push_str(line);
+            }
+            "user" => {
+                if !user_prompt.is_empty() {
+                    user_prompt.push('\n');
+                }
+                user_prompt.push_str(line);
+            }
+            _ => {}
+        }
+    }
+    
+    if system_prompt.is_empty() {
+        return Err("No [system] section found in prompt file".into());
+    }
+    
+    Ok((system_prompt, user_prompt))
 }
 
 pub fn run_editor(
@@ -576,42 +619,64 @@ pub fn run_editor(
                                                           editor.prompt = Some(("Help file not found.".to_string(), PromptType::Message, None));
                                                       }
                                                    }
-                                               } else if cmd.starts_with("prompt ") {
-                                                   let prompt_text = cmd[7..].trim();
-                                                   if !prompt_text.is_empty() {
-                                                       let text = editor.buffer.join("\n");
-                                                       match ai::send_prompt(&config, prompt_text, &text) {
-                                                           Ok(response) => {
-                                                               // Save current state like help
-                                                               editor.original_buffer = Some(editor.buffer.clone());
-                                                               editor.original_filename = editor.filename.clone();
-                                                               editor.original_cursor_y = editor.cursor_y;
-                                                               editor.original_cursor_x = editor.cursor_x;
-                                                               editor.original_scroll_y = editor.scroll_y;
-                                                               editor.original_scroll_x = editor.scroll_x;
-                                                               editor.original_modified = editor.modified;
+} else if cmd.starts_with("prompt ") {
+                                                    let prompt_arg = cmd[7..].trim();
+                                                    if !prompt_arg.is_empty() {
+                                                        let text = editor.buffer.join("\n");
+                                                        
+                                                        // Check if the argument is quoted (direct user prompt) or unquoted (filename)
+                                                        let result = if prompt_arg.starts_with('"') && prompt_arg.ends_with('"') {
+                                                            // Quoted text - direct user prompt
+                                                            let user_prompt = &prompt_arg[1..prompt_arg.len()-1];
+                                                            ai::send_prompt_with_system(&config, None, user_prompt, &text)
+                                                        } else {
+                                                            // Unquoted text - filename
+                                                            match load_prompt_file(prompt_arg) {
+                                                                Ok((system_prompt, user_prompt)) => {
+                                                                    // Replace {{TEXT}} placeholder in user prompt with actual text
+                                                                    let final_user_prompt = user_prompt.replace("{{TEXT}}", &text);
+                                                                    ai::send_prompt_with_system(&config, Some(&system_prompt), &final_user_prompt, "")
+                                                                }
+                                                                Err(_) => {
+                                                                    editor.prompt = Some(("Prompt file not found. Either quote the text for a direct prompt or provide a valid filename (without .prompt extension). Press any key to continue.".to_string(), PromptType::Message, None));
+                                                                    editor.command_buffer.clear();
+                                                                    continue;
+                                                                }
+                                                            }
+                                                        };
+                                                        
+                                                        match result {
+                                                            Ok(response) => {
+                                                                // Save current state like help
+                                                                editor.original_buffer = Some(editor.buffer.clone());
+                                                                editor.original_filename = editor.filename.clone();
+                                                                editor.original_cursor_y = editor.cursor_y;
+                                                                editor.original_cursor_x = editor.cursor_x;
+                                                                editor.original_scroll_y = editor.scroll_y;
+                                                                editor.original_scroll_x = editor.scroll_x;
+                                                                editor.original_modified = editor.modified;
 
-                                                               // Load response into buffer
-                                                               editor.buffer = response.lines().map(|s| s.to_string()).collect();
-                                                               if editor.buffer.is_empty() {
-                                                                   editor.buffer.push(String::new());
-                                                               }
-                                                               editor.cursor_y = 0;
-                                                               editor.cursor_x = 0;
-                                                               editor.scroll_y = 0;
-                                                               editor.scroll_x = 0;
-                                                               editor.modified = true; // Since we're proposing changes
-                                                               editor.read_only = true;
-                                                               editor.focus = Focus::CommandLine; // Set focus to command line for confirmation
-                                                               editor.prompt = Some(("Accept AI changes? (y/n)".to_string(), PromptType::Confirm, Some(PromptAction::AcceptAi)));
-                                                           }
-                                                           Err(e) => {
-                                                               editor.prompt = Some((format!("AI error: {}", e), PromptType::Message, None));
-                                                           }
-                                                       }
-                                                   } else {
-                                                       editor.prompt = Some(("Prompt command requires text.".to_string(), PromptType::Message, None));
-                                                   }
+                                                                // Load response into buffer
+                                                                editor.buffer = response.lines().map(|s| s.to_string()).collect();
+                                                                if editor.buffer.is_empty() {
+                                                                    editor.buffer.push(String::new());
+                                                                }
+                                                                editor.cursor_y = 0;
+                                                                editor.cursor_x = 0;
+                                                                editor.scroll_y = 0;
+                                                                editor.scroll_x = 0;
+                                                                editor.modified = true; // Since we're proposing changes
+                                                                editor.read_only = true;
+                                                                editor.focus = Focus::CommandLine; // Set focus to command line for confirmation
+                                                                editor.prompt = Some(("Accept AI changes? (y/n)".to_string(), PromptType::Confirm, Some(PromptAction::AcceptAi)));
+                                                            }
+                                                            Err(e) => {
+                                                                editor.prompt = Some((format!("AI error: {}", e), PromptType::Message, None));
+                                                            }
+                                                        }
+                                                    } else {
+                                                        editor.prompt = Some(("Prompt command requires text or filename.".to_string(), PromptType::Message, None));
+                                                    }
                                                } else {
                                                    editor.prompt = Some((format!("Unknown command: {}", cmd), PromptType::Message, None));
                                                }
