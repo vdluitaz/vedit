@@ -39,11 +39,11 @@ impl SyntaxEngine {
         let mut syntax_set_builder = SyntaxSet::load_defaults_newlines().into_builder();
         syntax_set_builder
             .add_from_folder("assets/syntaxes", true)
-            .unwrap();
+            .ok(); // Ignore if directory doesn't exist
         let syntax_set = syntax_set_builder.build();
 
-        let mut theme_set = ThemeSet::new();
-        theme_set.add_from_folder("assets/themes").unwrap();
+        let mut theme_set = ThemeSet::load_defaults();
+        theme_set.add_from_folder("assets/themes").ok(); // Ignore if directory doesn't exist
 
         let theme = theme_set.themes.get(theme_name).cloned().unwrap_or_else(|| {
             eprintln!("Theme '{}' not found, using default.", theme_name);

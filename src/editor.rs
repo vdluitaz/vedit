@@ -11,6 +11,7 @@ pub enum Focus {
 pub enum PromptAction {
     Save,
     Quit,
+    AcceptAi,
 }
 
 #[derive(Clone)]
@@ -532,13 +533,6 @@ impl Editor {
         // Save current buffer state to undo history
         let current_state = self.buffer.clone();
         
-        // Don't save if the current state is identical to the last saved state
-        if let Some(last_state) = self.undo_history.last() {
-            if *last_state == current_state {
-                return;
-            }
-        }
-        
         // If we're not at the latest state, truncate history
         if self.undo_index < self.undo_history.len() - 1 {
             self.undo_history.truncate(self.undo_index + 1);
@@ -547,9 +541,11 @@ impl Editor {
         // Add new state
         self.undo_history.push(current_state);
         self.undo_index += 1;
-        
-        // Update last save state
+    }
+
+    pub fn mark_as_saved(&mut self) {
         self.last_save_state = Some(self.buffer.clone());
+        self.modified = false;
     }
 
     pub fn undo(&mut self) -> bool {
@@ -578,8 +574,38 @@ impl Editor {
         true
     }
 
+    pub fn redo(&mut self) -> bool {
+        // Can't redo if we're at the latest state
+        if self.undo_index >= self.undo_history.len() - 1 {
+            return false;
+        }
+        
+        // Move to next state
+        self.undo_index += 1;
+        self.buffer = self.undo_history[self.undo_index].clone();
+        
+        // Update cursor position to be within bounds
+        self.cursor_y = self.cursor_y.min(self.buffer.len().saturating_sub(1));
+        let line_width = self.buffer.get(self.cursor_y).map(|line| line.width()).unwrap_or(0);
+        self.cursor_x = self.cursor_x.min(line_width);
+        
+        // Update modified status
+        if let Some(ref save_state) = self.last_save_state {
+            self.modified = self.buffer != *save_state;
+        } else {
+            self.modified = true;
+        }
+        
+        self.scroll();
+        true
+    }
+
     pub fn can_undo(&self) -> bool {
         self.undo_index > 0
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.undo_index < self.undo_history.len() - 1
     }
 
     pub fn get_undo_info(&self) -> (usize, usize) {

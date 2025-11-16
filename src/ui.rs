@@ -1,3 +1,4 @@
+use crate::ai;
 use crate::config::EditorConfig;
 use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, SearchScope};
 use crate::syntax::SyntaxEngine;
@@ -73,7 +74,8 @@ fn save_file(editor: &mut Editor, filename: &Option<String>) -> Result<(), Box<d
     if let Some(path) = filename {
         let content = editor.buffer.join("\n");
         std::fs::write(path, &content)?;
-        editor.save_state(); // Update the save state for undo tracking
+        editor.save_state(); // Save state for undo tracking
+        editor.mark_as_saved(); // Mark as saved to clear modified flag
         Ok(())
     } else {
         Err("No filename specified".into())
@@ -163,23 +165,50 @@ pub fn run_editor(
                       format!(" [S:{} lines] ", editor.buffer.len()),
                       Style::default().fg(Color::White).bg(Color::Green),
                   );
-                  let width_comp = Span::styled(
-                      format!(" [W:{}] ", editor.editor_visible_width),
-                      Style::default().fg(Color::White).bg(Color::Rgb(255, 165, 0)), // Orange
-                  );
-                   let separator = Span::styled(" | ", Style::default().fg(Color::White));
+                   let width_comp = Span::styled(
+                       format!(" [W:{}] ", editor.editor_visible_width),
+                       Style::default().fg(Color::White).bg(Color::Rgb(255, 165, 0)), // Orange
+                   );
+                   let model_comp = if let Some(ai) = &config.ai {
+                       if let Some(default_id) = &ai.default_model {
+                           if let Some(model) = ai.models.iter().find(|m| &m.id == default_id) {
+                               Span::styled(
+                                   format!(" [Model: {}] ", model.display_name),
+                                   Style::default().fg(Color::White).bg(Color::Rgb(255, 0, 255)), // Magenta
+                               )
+                           } else {
+                               Span::styled(
+                                   " [Model: Unknown] ",
+                                   Style::default().fg(Color::White).bg(Color::Rgb(255, 69, 0)), // Red-Orange
+                               )
+                           }
+                       } else {
+                           Span::styled(
+                               " [No Default Model] ",
+                               Style::default().fg(Color::White).bg(Color::Rgb(128, 128, 128)), // Gray
+                           )
+                       }
+                   } else {
+                       Span::styled(
+                           " [No AI Config] ",
+                           Style::default().fg(Color::White).bg(Color::Rgb(128, 128, 128)), // Gray
+                       )
+                   };
+                    let separator = Span::styled(" | ", Style::default().fg(Color::White));
 
-                  let status_line = Line::from(vec![
-                      dir_comp,
-                      separator.clone(),
-                      file_comp,
-                      separator.clone(),
-                      cursor_comp,
-                      separator.clone(),
-                      size_comp,
-                      separator.clone(),
-                      width_comp,
-                  ]);
+                   let status_line = Line::from(vec![
+                       dir_comp,
+                       separator.clone(),
+                       file_comp,
+                       separator.clone(),
+                       cursor_comp,
+                       separator.clone(),
+                       size_comp,
+                       separator.clone(),
+                       width_comp,
+                       separator.clone(),
+                       model_comp,
+                   ]);
                  let status_bar = Paragraph::new(status_line)
                      .block(Block::default());
                  f.render_widget(status_bar, chunks[0]);
@@ -273,12 +302,19 @@ pub fn run_editor(
                             text_chunk.y + 1 + (editor.cursor_y - editor.scroll_y) as u16,
                         );
                     }
-                    Focus::CommandLine => {
-                        f.set_cursor(
-                            chunks[1].x + 2 + editor.command_buffer.len() as u16,
-                            chunks[1].y,
-                        );
-                    }
+                     Focus::CommandLine => {
+                         if let Some((msg, _, _)) = &editor.prompt {
+                             f.set_cursor(
+                                 chunks[1].x + msg.len() as u16,
+                                 chunks[1].y,
+                             );
+                         } else {
+                             f.set_cursor(
+                                 chunks[1].x + 2 + editor.command_buffer.len() as u16,
+                                 chunks[1].y,
+                             );
+                         }
+                     }
                 }
             })
             .unwrap();
@@ -301,12 +337,33 @@ pub fn run_editor(
                                             Some(PromptAction::Quit) => {
                                                 break;
                                             }
+                                            Some(PromptAction::AcceptAi) => {
+                                                // Changes already applied, enable editing
+                                                editor.read_only = false;
+                                                editor.focus = Focus::Editor;
+                                            }
                                             None => {}
                                         }
                                     }
                                     KeyCode::Char('n') => {
-                                        editor.prompt = None;
-                                        editor.command_buffer.clear();
+                                        if let Some(PromptAction::AcceptAi) = action {
+                                            // Restore original state
+                                            if let Some(buf) = editor.original_buffer.take() {
+                                                editor.buffer = buf;
+                                            }
+                                            editor.filename = editor.original_filename.take();
+                                            editor.cursor_y = editor.original_cursor_y;
+                                            editor.cursor_x = editor.original_cursor_x;
+                                            editor.scroll_y = editor.original_scroll_y;
+                                            editor.scroll_x = editor.original_scroll_x;
+                                            editor.modified = editor.original_modified;
+                                            editor.read_only = false;
+                                            editor.focus = Focus::Editor;
+                                            editor.prompt = Some(("AI changes rejected.".to_string(), PromptType::Message, None));
+                                        } else {
+                                            editor.prompt = None;
+                                            editor.command_buffer.clear();
+                                        }
                                     }
                                     _ => {}
                                 }
@@ -460,6 +517,12 @@ pub fn run_editor(
                                                     } else {
                                                         editor.prompt = Some(("Nothing to undo.".to_string(), PromptType::Message, None));
                                                     }
+                                                } else if cmd == "redo" {
+                                                    if editor.redo() {
+                                                        editor.prompt = Some(("Redid last change.".to_string(), PromptType::Message, None));
+                                                    } else {
+                                                        editor.prompt = Some(("Nothing to redo.".to_string(), PromptType::Message, None));
+                                                    }
                                                 } else if cmd == "lnum" {
                                                   editor.show_line_numbers = !editor.show_line_numbers;
                                                   editor.prompt = Some(("Line numbers toggled.".to_string(), PromptType::Message, None));
@@ -512,10 +575,46 @@ pub fn run_editor(
                                                       Err(_) => {
                                                           editor.prompt = Some(("Help file not found.".to_string(), PromptType::Message, None));
                                                       }
-                                                  }
-                                              } else {
-                                                  editor.prompt = Some((format!("Unknown command: {}", cmd), PromptType::Message, None));
-                                              }
+                                                   }
+                                               } else if cmd.starts_with("prompt ") {
+                                                   let prompt_text = cmd[7..].trim();
+                                                   if !prompt_text.is_empty() {
+                                                       let text = editor.buffer.join("\n");
+                                                       match ai::send_prompt(&config, prompt_text, &text) {
+                                                           Ok(response) => {
+                                                               // Save current state like help
+                                                               editor.original_buffer = Some(editor.buffer.clone());
+                                                               editor.original_filename = editor.filename.clone();
+                                                               editor.original_cursor_y = editor.cursor_y;
+                                                               editor.original_cursor_x = editor.cursor_x;
+                                                               editor.original_scroll_y = editor.scroll_y;
+                                                               editor.original_scroll_x = editor.scroll_x;
+                                                               editor.original_modified = editor.modified;
+
+                                                               // Load response into buffer
+                                                               editor.buffer = response.lines().map(|s| s.to_string()).collect();
+                                                               if editor.buffer.is_empty() {
+                                                                   editor.buffer.push(String::new());
+                                                               }
+                                                               editor.cursor_y = 0;
+                                                               editor.cursor_x = 0;
+                                                               editor.scroll_y = 0;
+                                                               editor.scroll_x = 0;
+                                                               editor.modified = true; // Since we're proposing changes
+                                                               editor.read_only = true;
+                                                               editor.focus = Focus::CommandLine; // Set focus to command line for confirmation
+                                                               editor.prompt = Some(("Accept AI changes? (y/n)".to_string(), PromptType::Confirm, Some(PromptAction::AcceptAi)));
+                                                           }
+                                                           Err(e) => {
+                                                               editor.prompt = Some((format!("AI error: {}", e), PromptType::Message, None));
+                                                           }
+                                                       }
+                                                   } else {
+                                                       editor.prompt = Some(("Prompt command requires text.".to_string(), PromptType::Message, None));
+                                                   }
+                                               } else {
+                                                   editor.prompt = Some((format!("Unknown command: {}", cmd), PromptType::Message, None));
+                                               }
                                          }
                                          editor.command_buffer.clear();
                                      }
