@@ -477,27 +477,22 @@ pub fn run_editor(
                     // Handle diff mode keybindings
                     if let DiffMode::Active { .. } = &editor.diff_mode {
                         match key.code {
-                            KeyCode::Char('a') => {
-                                editor.accept_current_hunk();
-                            }
-                            KeyCode::Char('r') => {
-                                editor.reject_current_hunk();
-                            }
+                            KeyCode::Char('a') => { editor.accept_current_hunk(); editor.next_hunk(); }
+                            KeyCode::Char('A') => { editor.accept_all_hunks(); }
+                            KeyCode::Char('r') => { editor.reject_current_hunk(); editor.next_hunk(); }
+                            KeyCode::Char('R') => { editor.reject_all_hunks(); }
                             KeyCode::Char('n') => {
                                 if !editor.next_hunk() {
-                                    // No more hunks, go to end
                                     editor.prompt = Some(("No more hunks. Press 'q' to apply changes or 'q' again to cancel.".to_string(), PromptType::Message, None));
                                 }
                             }
-                            KeyCode::Char('p') => {
-                                editor.prev_hunk();
+                            KeyCode::Char('N') => {
+                                if !editor.next_hunk() {
+                                    editor.prompt = Some(("No more hunks. Press 'q' to apply changes or 'q' again to cancel.".to_string(), PromptType::Message, None));
+                                }
                             }
-                            KeyCode::Char('A') => {
-                                editor.accept_all_hunks();
-                            }
-                            KeyCode::Char('R') => {
-                                editor.reject_all_hunks();
-                            }
+                            KeyCode::Char('p') => { editor.prev_hunk(); }
+                            KeyCode::Char('P') => { editor.prev_hunk(); }
                             KeyCode::Char('q') => {
                                 if editor.apply_diff_changes() {
                                     editor.prompt = Some(("Changes applied successfully.".to_string(), PromptType::Message, None));
@@ -508,7 +503,9 @@ pub fn run_editor(
                             }
                             _ => {} // Ignore other keys in diff mode
                         }
+                        continue; // Skip focus-based handling when in diff mode
                     } else if let Some((_, prompt_type, action)) = &editor.prompt.clone() {
+
                         match prompt_type {
                             PromptType::Confirm => {
                                 match key.code {
