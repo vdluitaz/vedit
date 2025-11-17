@@ -1,5 +1,20 @@
 use unicode_width::UnicodeWidthStr;
 use crate::config::EditorConfig;
+use std::time::Instant;
+use std::sync::mpsc::Receiver;
+
+pub enum AiStatus {
+    Idle,
+    InProgress { start_time: Instant, spinner_state: usize },
+    Success { message: String, timestamp: Instant },
+    Failure { message: String, timestamp: Instant },
+}
+
+impl Default for AiStatus {
+    fn default() -> Self {
+        AiStatus::Idle
+    }
+}
 
 #[derive(PartialEq)]
 pub enum Focus {
@@ -83,6 +98,8 @@ pub struct Editor {
     pub replace_text: Option<String>,
     pub replace_all: bool,
     pub diff_mode: DiffMode,
+    pub ai_status: AiStatus,
+    pub ai_response_receiver: Option<Receiver<Result<String, String>>>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -173,6 +190,8 @@ impl Editor {
 replace_text: None,
             replace_all: false,
             diff_mode: DiffMode::Inactive,
+            ai_status: AiStatus::default(),
+            ai_response_receiver: None,
         }
     }
 

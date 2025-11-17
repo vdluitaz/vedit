@@ -1,8 +1,11 @@
 use crate::ai;
 use crate::config::EditorConfig;
-use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, DiffMode, DiffLine, SearchScope};
+use crate::editor::{AiStatus, Editor, Focus, PromptAction, PromptType, SelectionMode, DiffMode, DiffLine, SearchScope};
 use crate::syntax::SyntaxEngine;
 use std::fs;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Instant;
 use unicode_width::UnicodeWidthChar;
 use crossterm::{
     cursor::SetCursorStyle,
@@ -302,7 +305,28 @@ pub fn run_editor(
                    };
                     let separator = Span::styled(" | ", Style::default().fg(Color::White));
 
-                   let status_line = Line::from(vec![
+                    let ai_status_comp = match &editor.ai_status {
+                        AiStatus::Idle => Span::raw(""),
+                        AiStatus::InProgress { start_time, spinner_state } => {
+                            let spinner = ['|', '/', '-', '\\'];
+                            let spinner_char = spinner[*spinner_state % spinner.len()];
+                            let elapsed = start_time.elapsed().as_secs();
+                            Span::styled(
+                                format!(" [{} AI Running... {}s] ", spinner_char, elapsed),
+                                Style::default().fg(Color::White).bg(Color::Cyan),
+                            )
+                        }
+                        AiStatus::Success { message, .. } => Span::styled(
+                            format!(" [AI: {}] ", message),
+                            Style::default().fg(Color::White).bg(Color::Green),
+                        ),
+                        AiStatus::Failure { message, .. } => Span::styled(
+                            format!(" [AI: {}] ", message),
+                            Style::default().fg(Color::White).bg(Color::Red),
+                        ),
+                    };
+
+                   let mut status_items = vec![
                        dir_comp,
                        separator.clone(),
                        file_comp,
@@ -314,7 +338,14 @@ pub fn run_editor(
                        width_comp,
                        separator.clone(),
                        model_comp,
-                   ]);
+                   ];
+
+                   if !matches!(editor.ai_status, AiStatus::Idle) {
+                        status_items.push(separator.clone());
+                        status_items.push(ai_status_comp);
+                   }
+
+                   let status_line = Line::from(status_items);
                  let status_bar = Paragraph::new(status_line)
                      .block(Block::default());
                  f.render_widget(status_bar, chunks[0]);
@@ -469,6 +500,41 @@ pub fn run_editor(
             .unwrap();
 
         stdout().flush().unwrap();
+
+        // Update AI status (spinner, timeout)
+        if let AiStatus::InProgress { ref mut spinner_state, .. } = editor.ai_status {
+            *spinner_state = (*spinner_state + 1) % 4;
+        }
+        if let AiStatus::Success { timestamp, .. } | AiStatus::Failure { timestamp, .. } = editor.ai_status {
+            if timestamp.elapsed().as_secs() > 5 {
+                editor.ai_status = AiStatus::Idle;
+            }
+        }
+
+        // Check for AI response
+        if let Some(receiver) = &editor.ai_response_receiver {
+            if let Ok(result) = receiver.try_recv() {
+                match result {
+                    Ok(response) => {
+                        let modified_buffer: Vec<String> = response.lines().map(|s| s.to_string()).collect();
+                        editor.start_diff_mode(modified_buffer);
+                        editor.read_only = true;
+                        editor.focus = Focus::CommandLine;
+                        editor.ai_status = AiStatus::Success {
+                            message: "ok".to_string(),
+                            timestamp: Instant::now(),
+                        };
+                    }
+                    Err(e) => {
+                        editor.ai_status = AiStatus::Failure {
+                            message: e,
+                            timestamp: Instant::now(),
+                        };
+                    }
+                }
+                editor.ai_response_receiver = None;
+            }
+        }
 
         // Update state based on events
         if event::poll(std::time::Duration::from_millis(200)).unwrap() {
@@ -789,50 +855,39 @@ pub fn run_editor(
                                                       }
                                                    }
 } else if cmd.starts_with("prompt ") {
-                                                    let prompt_arg = cmd[7..].trim();
-                                                    if !prompt_arg.is_empty() {
-                                                        let text = editor.buffer.join("\n");
-                                                        
-                                                        // Check if the argument is quoted (direct user prompt) or unquoted (filename)
-                                                        let result = if prompt_arg.starts_with('"') && prompt_arg.ends_with('"') {
-                                                            // Quoted text - direct user prompt
-                                                            let user_prompt = &prompt_arg[1..prompt_arg.len()-1];
-                                                            ai::send_prompt_with_system(&config, None, user_prompt, &text)
-                                                        } else {
-                                                            // Unquoted text - filename
-                                                            match load_prompt_file(prompt_arg) {
-                                                                Ok((system_prompt, user_prompt)) => {
-                                                                    // Replace {{TEXT}} placeholder in user prompt with actual text
-                                                                    let final_user_prompt = user_prompt.replace("{{TEXT}}", &text);
-                                                                    ai::send_prompt_with_system(&config, Some(&system_prompt), &final_user_prompt, "")
-                                                                }
-                                                                Err(_) => {
-                                                                    editor.prompt = Some(("Prompt file not found. Either quote the text for a direct prompt or provide a valid filename (without .prompt extension). Press any key to continue.".to_string(), PromptType::Message, None));
-                                                                    editor.command_buffer.clear();
-                                            editor.command_cursor = 0;
-                                                                    continue;
-                                                                }
-                                                            }
-                                                        };
-                                                        
-                                                        match result {
-                                                            Ok(response) => {
-                                                                // Create modified buffer from AI response
-                                                                let modified_buffer: Vec<String> = response.lines().map(|s| s.to_string()).collect();
-                                                                
-                                                                // Start diff mode
-                                                                editor.start_diff_mode(modified_buffer);
-                                                                editor.read_only = true;
-                                                                editor.focus = Focus::CommandLine;
-                                                            }
-                                                            Err(e) => {
-                                                                editor.prompt = Some((format!("AI error: {}", e), PromptType::Message, None));
-                                                            }
-                                                        }
-                                                    } else {
-                                                        editor.prompt = Some(("Prompt command requires text or filename.".to_string(), PromptType::Message, None));
-                                                    }
-                                               } else {
+    let prompt_arg = cmd[7..].trim();
+    if !prompt_arg.is_empty() {
+        let text = editor.buffer.join("\n");
+        let (tx, rx) = mpsc::channel();
+        editor.ai_response_receiver = Some(rx);
+        editor.ai_status = AiStatus::InProgress {
+            start_time: Instant::now(),
+            spinner_state: 0,
+        };
+
+        let thread_config = config.clone();
+        let thread_text = text.clone();
+        let prompt_arg = prompt_arg.to_string();
+
+        thread::spawn(move || {
+            let result = if prompt_arg.starts_with('"') && prompt_arg.ends_with('"') {
+                let user_prompt = &prompt_arg[1..prompt_arg.len() - 1];
+                ai::send_prompt_with_system(&thread_config, None, user_prompt, &thread_text)
+            } else {
+                match load_prompt_file(&prompt_arg) {
+                    Ok((system_prompt, user_prompt)) => {
+                        let final_user_prompt = user_prompt.replace("{{TEXT}}", &thread_text);
+                        ai::send_prompt_with_system(&thread_config, Some(&system_prompt), &final_user_prompt, "")
+                    }
+                    Err(e) => Err(e.into()),
+                }
+            };
+            let _ = tx.send(result.map_err(|e| e.to_string()));
+        });
+    } else {
+        editor.prompt = Some(("Prompt command requires text or filename.".to_string(), PromptType::Message, None));
+    }
+} else {
                                                    editor.prompt = Some((format!("Unknown command: {}", cmd), PromptType::Message, None));
                                                }
                                          }

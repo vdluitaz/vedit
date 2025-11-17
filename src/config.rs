@@ -3,11 +3,24 @@ use std::fs;
 
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Provider {
+    AnythingLLM,
+    Ollama,
+    OpenAI,
+    #[serde(rename = "openai-compatible")]
+    OpenAICompatible,
+    #[serde(rename = "lm-studio")]
+    LmStudio,
+    Gemini,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelConfig {
     pub id: String,
     pub display_name: String,
-    pub provider: String,
+    pub provider: Provider,
     pub endpoint: String,
     pub model: String,
     pub api_key_env: Option<String>,
@@ -16,7 +29,7 @@ pub struct ModelConfig {
     pub timeout_ms: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct AiConfig {
     pub default_model: Option<String>,
     pub max_tokens_default: Option<usize>,
@@ -25,7 +38,7 @@ pub struct AiConfig {
     pub models: Vec<ModelConfig>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct EditorConfig {
     pub theme: String,
     pub tab_width: usize,
