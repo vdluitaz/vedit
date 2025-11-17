@@ -71,6 +71,37 @@ The command line is accessed by pressing the Home key. Type commands and press E
 
 ## AI Integration
 
-AI integration is not yet implemented. This section is a placeholder for future functionality.
+AI integration is configured via the `[ai]` section in `~/.vedit.toml`:
+
+- `default_model`: ID of the default AI model to use
+- `timeout_ms_default`: Default timeout in milliseconds for AI requests (optional)
+- `models`: List of available AI models
+
+Each model can have:
+- `id`: Unique identifier
+- `display_name`: Human-readable name
+- `provider`: Provider name
+- `endpoint`: API endpoint URL
+- `model`: Model name
+- `api_key_env`: Environment variable containing API key (optional)
+- `timeout_ms`: Timeout in milliseconds for this model (optional)
+- `max_tokens`: Maximum tokens for responses (optional)
+- `temperature`: Temperature parameter (optional)
+
+Example AI configuration:
+```toml
+[ai]
+default_model = "gpt4"
+timeout_ms_default = 30000
+
+[[ai.models]]
+id = "gpt4"
+display_name = "GPT-4"
+provider = "openai"
+endpoint = "https://api.openai.com/v1/chat/completions"
+model = "gpt-4"
+api_key_env = "OPENAI_API_KEY"
+timeout_ms = 60000
+```
 
 For more information, see the documentation in the `docs/` directory.

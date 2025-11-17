@@ -81,6 +81,7 @@ pub struct Editor {
     pub matches_in_last_line: usize,
     pub replace_text: Option<String>,
     pub replace_all: bool,
+    pub diff_mode: DiffMode,
 }
 
 #[derive(Clone, PartialEq)]
@@ -88,6 +89,35 @@ pub enum SearchScope {
     All,
     Line,
     Block,
+}
+
+#[derive(Clone, Debug)]
+pub enum DiffLine {
+    Context(String),
+    Added(String),
+    Removed(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct Hunk {
+    pub old_start: usize,
+    pub old_lines: usize,
+    pub new_start: usize,
+    pub new_lines: usize,
+    pub lines: Vec<DiffLine>,
+    pub accepted: bool,
+}
+
+#[derive(Clone)]
+pub enum DiffMode {
+    Inactive,
+    Active {
+        original_buffer: Vec<String>,
+        modified_buffer: Vec<String>,
+        hunks: Vec<Hunk>,
+        current_hunk: usize,
+        accept_all: bool,
+    },
 }
 
 impl Editor {
@@ -138,8 +168,9 @@ impl Editor {
              search_matches: Vec::new(),
              current_match_index: 0,
              matches_in_last_line: 0,
-             replace_text: None,
-             replace_all: false,
+replace_text: None,
+            replace_all: false,
+            diff_mode: DiffMode::Inactive,
         }
     }
 
@@ -1190,5 +1221,275 @@ impl Editor {
         }
         
         self.modified = true;
+    }
+
+    pub fn start_diff_mode(&mut self, modified_buffer: Vec<String>) {
+        let original_buffer = self.buffer.clone();
+        let hunks = self.compute_diff(&original_buffer, &modified_buffer);
+        
+        self.diff_mode = DiffMode::Active {
+            original_buffer,
+            modified_buffer,
+            hunks,
+            current_hunk: 0,
+            accept_all: false,
+        };
+        
+        // Show first hunk
+        if !self.get_hunks().is_empty() {
+            self.show_hunk(0);
+        }
+    }
+
+    fn should_use_temp_file(&self, buffer_size: &[String]) -> bool {
+        // Use temp file for buffers larger than 1MB or 10000 lines
+        const SIZE_THRESHOLD: usize = 1024 * 1024; // 1MB
+        const LINE_THRESHOLD: usize = 10000;
+        
+        let total_size: usize = buffer_size.iter().map(|line| line.len()).sum();
+        total_size > SIZE_THRESHOLD || buffer_size.len() > LINE_THRESHOLD
+    }
+
+    pub fn get_hunks(&self) -> &[Hunk] {
+        static EMPTY_HUNKS: Vec<Hunk> = Vec::new();
+        match &self.diff_mode {
+            DiffMode::Active { hunks, .. } => hunks,
+            _ => &EMPTY_HUNKS,
+        }
+    }
+
+    pub fn get_current_hunk_index(&self) -> usize {
+        match &self.diff_mode {
+            DiffMode::Active { current_hunk, .. } => *current_hunk,
+            _ => 0,
+        }
+    }
+
+    pub fn show_hunk(&mut self, hunk_index: usize) {
+        if let DiffMode::Active { hunks, current_hunk, .. } = &mut self.diff_mode {
+            if hunk_index < hunks.len() {
+                *current_hunk = hunk_index;
+                // Update buffer to show current state with this hunk applied
+                self.update_buffer_with_accepted_hunks();
+            }
+        }
+    }
+
+    pub fn next_hunk(&mut self) -> bool {
+        let hunks = self.get_hunks();
+        let current = self.get_current_hunk_index();
+        
+        if current + 1 < hunks.len() {
+            self.show_hunk(current + 1);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn prev_hunk(&mut self) -> bool {
+        let current = self.get_current_hunk_index();
+        
+        if current > 0 {
+            self.show_hunk(current - 1);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn accept_current_hunk(&mut self) {
+        if let DiffMode::Active { hunks, current_hunk, .. } = &mut self.diff_mode {
+            if *current_hunk < hunks.len() {
+                hunks[*current_hunk].accepted = true;
+                self.update_buffer_with_accepted_hunks();
+            }
+        }
+    }
+
+    pub fn reject_current_hunk(&mut self) {
+        if let DiffMode::Active { hunks, current_hunk, .. } = &mut self.diff_mode {
+            if *current_hunk < hunks.len() {
+                hunks[*current_hunk].accepted = false;
+                self.update_buffer_with_accepted_hunks();
+            }
+        }
+    }
+
+    pub fn accept_all_hunks(&mut self) {
+        if let DiffMode::Active { hunks, accept_all, .. } = &mut self.diff_mode {
+            for hunk in hunks.iter_mut() {
+                hunk.accepted = true;
+            }
+            *accept_all = true;
+            self.update_buffer_with_accepted_hunks();
+        }
+    }
+
+    pub fn all_hunks_accepted(&self) -> bool {
+        match &self.diff_mode {
+            DiffMode::Active { hunks, .. } => {
+                hunks.iter().all(|h| h.accepted)
+            }
+            _ => false,
+        }
+    }
+
+    pub fn reject_all_hunks(&mut self) {
+        if let DiffMode::Active { hunks, accept_all, .. } = &mut self.diff_mode {
+            for hunk in hunks.iter_mut() {
+                hunk.accepted = false;
+            }
+            *accept_all = false;
+            self.update_buffer_with_accepted_hunks();
+        }
+    }
+
+    pub fn apply_diff_changes(&mut self) -> bool {
+        if let DiffMode::Active { original_buffer, hunks, .. } = &self.diff_mode {
+            // Apply all accepted hunks to create final buffer
+            let mut result_buffer = original_buffer.clone();
+            let mut line_offset = 0isize;
+            
+            for hunk in hunks.iter().filter(|h| h.accepted) {
+                self.apply_hunk_to_buffer(&mut result_buffer, hunk, (hunk.old_start as isize + line_offset) as usize);
+                line_offset += hunk.new_lines as isize - hunk.old_lines as isize;
+            }
+            
+            self.buffer = result_buffer;
+            self.modified = true;
+            self.diff_mode = DiffMode::Inactive;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn cancel_diff_mode(&mut self) -> bool {
+        if let DiffMode::Active { original_buffer, .. } = &self.diff_mode {
+            self.buffer = original_buffer.clone();
+            self.diff_mode = DiffMode::Inactive;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn update_buffer_with_accepted_hunks(&mut self) {
+        if let DiffMode::Active { original_buffer, hunks, .. } = &self.diff_mode {
+            let mut result_buffer = original_buffer.clone();
+            let mut line_offset = 0isize;
+            
+            for hunk in hunks.iter().filter(|h| h.accepted) {
+                self.apply_hunk_to_buffer(&mut result_buffer, hunk, (hunk.old_start as isize + line_offset) as usize);
+                line_offset += hunk.new_lines as isize - hunk.old_lines as isize;
+            }
+            
+            self.buffer = result_buffer;
+        }
+    }
+
+    fn apply_hunk_to_buffer(&self, buffer: &mut Vec<String>, hunk: &Hunk, start_line: usize) {
+        // Remove old lines (only if they exist)
+        for _ in 0..hunk.old_lines {
+            if start_line < buffer.len() {
+                buffer.remove(start_line);
+            }
+        }
+        
+        // Insert new lines (ensure we don't go beyond buffer)
+        for (i, line) in hunk.lines.iter().enumerate() {
+            match line {
+                DiffLine::Added(content) | DiffLine::Context(content) => {
+                    let insert_pos = (start_line + i).min(buffer.len());
+                    buffer.insert(insert_pos, content.clone());
+                }
+                DiffLine::Removed(_) => {} // Skip removed lines
+            }
+        }
+    }
+
+    fn compute_diff(&self, original: &[String], modified: &[String]) -> Vec<Hunk> {
+        let mut hunks = Vec::new();
+        let mut i = 0;
+        let mut j = 0;
+        let mut hunk_start_original = 0;
+        let mut hunk_start_modified = 0;
+        let mut current_hunk_lines = Vec::new();
+        let mut in_hunk = false;
+        
+        while i < original.len() || j < modified.len() {
+            if i < original.len() && j < modified.len() && original[i] == modified[j] {
+                if in_hunk {
+                    // End of hunk
+                    hunks.push(Hunk {
+                        old_start: hunk_start_original,
+                        old_lines: i - hunk_start_original,
+                        new_start: hunk_start_modified,
+                        new_lines: j - hunk_start_modified,
+                        lines: current_hunk_lines.clone(),
+                        accepted: false,
+                    });
+                    current_hunk_lines.clear();
+                    in_hunk = false;
+                }
+                i += 1;
+                j += 1;
+            } else {
+                if !in_hunk {
+                    // Start of hunk
+                    hunk_start_original = i;
+                    hunk_start_modified = j;
+                    in_hunk = true;
+                }
+                
+                if i < original.len() && (j >= modified.len() || original[i] != modified[j]) {
+                    current_hunk_lines.push(DiffLine::Removed(original[i].clone()));
+                    i += 1;
+                }
+                
+                if j < modified.len() && (i >= original.len() || original[i] != modified[j]) {
+                    current_hunk_lines.push(DiffLine::Added(modified[j].clone()));
+                    j += 1;
+                }
+            }
+        }
+        
+        // Handle final hunk if we're still in one
+        if in_hunk {
+            hunks.push(Hunk {
+                old_start: hunk_start_original,
+                old_lines: i - hunk_start_original,
+                new_start: hunk_start_modified,
+                new_lines: j - hunk_start_modified,
+                lines: current_hunk_lines,
+                accepted: false,
+            });
+        }
+        
+        hunks
+    }
+
+    pub fn get_diff_stats(&self) -> (usize, usize, usize) {
+        // Returns (total_hunks, added_lines, removed_lines)
+        match &self.diff_mode {
+            DiffMode::Active { hunks, .. } => {
+                let mut added = 0;
+                let mut removed = 0;
+                
+                for hunk in hunks {
+                    for line in &hunk.lines {
+                        match line {
+                            DiffLine::Added(_) => added += 1,
+                            DiffLine::Removed(_) => removed += 1,
+                            DiffLine::Context(_) => {}
+                        }
+                    }
+                }
+                
+                (hunks.len(), added, removed)
+            }
+            _ => (0, 0, 0),
+        }
     }
 }

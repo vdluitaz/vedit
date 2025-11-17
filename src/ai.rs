@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 #[derive(Serialize)]
 struct AnythingLLMRequest {
@@ -50,7 +50,15 @@ pub fn send_prompt_with_system(
 
     let request_json = serde_json::to_string(&request)?;
 
-    let client = Client::new();
+    let timeout = model.timeout_ms
+        .or(ai.timeout_ms_default)
+        .map(|ms| Duration::from_millis(ms))
+        .unwrap_or(Duration::from_secs(30));
+
+    let client = Client::builder()
+        .timeout(timeout)
+        .build()?;
+
     let mut headers = reqwest::header::HeaderMap::new();
     let auth_value = if let Some(key_env) = &model.api_key_env {
         if key_env.starts_with("Bearer ") {

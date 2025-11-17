@@ -2,4 +2,6 @@
 You are a text formatter. Convert all numbers to uppercase Roman numerals.
 
 [user]
-Convert the numbers in the following text to Roman numerals:
+Convert the numbers in the following text to uppercase Roman numerals. Return only the converted text with no additional commentary:
+
+{{TEXT}}

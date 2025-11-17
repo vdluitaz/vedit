@@ -1,9 +1,9 @@
 use crate::ai;
 use crate::config::EditorConfig;
-use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, SearchScope};
+use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, DiffMode, DiffLine};
 use crate::syntax::SyntaxEngine;
 use std::fs;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthChar;
 use crossterm::{
     cursor::SetCursorStyle,
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
@@ -69,6 +69,69 @@ fn apply_block_selection(line: Line, min_x: usize, max_x: usize) -> Line {
         current_col += span_col;
     }
     Line::from(new_spans)
+}
+
+fn render_diff_line<'a>(diff_line: DiffLine, syntax_engine: &'a SyntaxEngine, syntax_name: &'a str) -> Line<'a> {
+    match diff_line {
+        DiffLine::Context(content) => {
+            let highlighted = syntax_engine.highlight_line(&content, syntax_name);
+            // Subtle gray background for context
+            let new_spans: Vec<Span> = highlighted.spans.into_iter().map(|mut span| {
+                span.style = span.style.bg(Color::Rgb(40, 40, 40));
+                span
+            }).collect();
+            Line::from(new_spans)
+        }
+        DiffLine::Added(content) => {
+            let highlighted = syntax_engine.highlight_line(&content, syntax_name);
+            // Green background for added lines
+            let new_spans: Vec<Span> = highlighted.spans.into_iter().map(|mut span| {
+                span.style = span.style.bg(Color::Rgb(0, 40, 0)).fg(Color::Rgb(150, 255, 150));
+                span
+            }).collect();
+            Line::from(new_spans)
+        }
+        DiffLine::Removed(content) => {
+            let highlighted = syntax_engine.highlight_line(&content, syntax_name);
+            // Red background for removed lines
+            let new_spans: Vec<Span> = highlighted.spans.into_iter().map(|mut span| {
+                span.style = span.style.bg(Color::Rgb(40, 0, 0)).fg(Color::Rgb(255, 150, 150));
+                span
+            }).collect();
+            Line::from(new_spans)
+        }
+    }
+}
+
+fn render_diff_status(editor: &Editor) -> Line<'static> {
+    match &editor.diff_mode {
+        DiffMode::Active { current_hunk, .. } => {
+            let (total_hunks, added, removed) = editor.get_diff_stats();
+            let hunk_num = current_hunk + 1;
+            
+            let status = if editor.all_hunks_accepted() {
+                format!(
+                    "All {} hunks accepted (+{} -{})   [q]uit to apply changes",
+                    total_hunks, added, removed
+                )
+            } else {
+                format!(
+                    "Hunk {}/{} (+{} -{})   [a]ccept  [r]eject  [n]ext  [p]rev  [A]ccept all  [R]eject all  [q]uit",
+                    hunk_num, total_hunks, added, removed
+                )
+            };
+            
+            Line::from(vec![
+                Span::styled(
+                    status,
+                    Style::default()
+                        .fg(Color::Rgb(200, 200, 200))
+                        .bg(Color::Rgb(30, 30, 30))
+                )
+            ])
+        }
+        _ => Line::from(vec![]),
+    }
 }
 
 fn save_file(editor: &mut Editor, filename: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
@@ -257,7 +320,9 @@ pub fn run_editor(
                  f.render_widget(status_bar, chunks[0]);
 
                 // 2. Command Line
-                let command_line_content = if let Some((msg, _, _)) = &editor.prompt {
+                let command_line_content = if let DiffMode::Active { .. } = &editor.diff_mode {
+                    render_diff_status(&editor)
+                } else if let Some((msg, _, _)) = &editor.prompt {
                     Line::from(vec![Span::raw(msg)])
                 } else {
                     Line::from(vec![
@@ -281,38 +346,79 @@ pub fn run_editor(
                     .block(Block::default());
                 f.render_widget(ruler, chunks[2]);
 
-                // 4. Editor View
-                let lines: Vec<Line> = editor
-                    .buffer
-                    .iter()
-                    .enumerate()
-                    .skip(editor.scroll_y)
-                    .take(editor.scroll_y + editor.editor_visible_height)
-                    .map(|(y, line)| {
-                        let mut highlighted = syntax_engine.highlight_line(line, &syntax_name);
-                        // Check if line is selected
-                        if let (Some(start), Some(end)) = (editor.selection_start, editor.selection_end) {
-                            let min_y = start.0.min(end.0);
-                            let max_y = start.0.max(end.0);
-                            let min_x = start.1.min(end.1);
-                            let max_x = start.1.max(end.1);
-                            if y >= min_y && y <= max_y {
-                                if editor.selection_mode == SelectionMode::Block {
-                                    highlighted = apply_block_selection(highlighted, min_x, max_x);
-                                } else {
-                                    // For line, highlight whole line
-                                    let new_spans: Vec<Span> = highlighted.spans.into_iter().map(|span| {
-                                        let mut style = span.style;
-                                        style = style.bg(Color::Blue).fg(Color::White);
-                                        Span { content: span.content, style }
-                                    }).collect();
-                                    highlighted = Line::from(new_spans);
+// 4. Editor View
+                let lines: Vec<Line> = if let DiffMode::Active { hunks, current_hunk, .. } = &editor.diff_mode {
+                    // Show diff view
+                    let mut diff_lines = Vec::new();
+                    let current_hunk_obj = &hunks[*current_hunk];
+                    
+                    // Add some context lines before the hunk
+                    let context_before = 3;
+                    let start_context = current_hunk_obj.old_start.saturating_sub(context_before);
+                    
+                    // Show context before hunk
+                    for i in start_context..current_hunk_obj.old_start {
+                        if i < editor.buffer.len() {
+                            let context_line = DiffLine::Context(editor.buffer[i].clone());
+                            let rendered = render_diff_line(context_line, &syntax_engine, &syntax_name);
+                            diff_lines.push(rendered);
+                        }
+                    }
+                    
+                    // Show hunk itself
+                    for diff_line in &current_hunk_obj.lines {
+                        let rendered = render_diff_line(diff_line.clone(), &syntax_engine, &syntax_name);
+                        diff_lines.push(rendered);
+                    }
+                    
+                    // Add some context lines after hunk
+                    let hunk_end = current_hunk_obj.old_start + current_hunk_obj.old_lines;
+                    let context_after = 3;
+                    let end_context = (hunk_end + context_after).min(editor.buffer.len());
+                    
+                    for i in hunk_end..end_context {
+                        if i < editor.buffer.len() {
+                            let context_line = DiffLine::Context(editor.buffer[i].clone());
+                            let rendered = render_diff_line(context_line, &syntax_engine, &syntax_name);
+                            diff_lines.push(rendered);
+                        }
+                    }
+                    
+                    diff_lines
+                } else {
+                    // Normal editor view
+                    editor
+                        .buffer
+                        .iter()
+                        .enumerate()
+                        .skip(editor.scroll_y)
+                        .take(editor.scroll_y + editor.editor_visible_height)
+                        .map(|(y, line)| {
+                            let mut highlighted = syntax_engine.highlight_line(line, &syntax_name);
+                            // Check if line is selected
+                            if let (Some(start), Some(end)) = (editor.selection_start, editor.selection_end) {
+                                let min_y = start.0.min(end.0);
+                                let max_y = start.0.max(end.0);
+                                let min_x = start.1.min(end.1);
+                                let max_x = start.1.max(end.1);
+                                if y >= min_y && y <= max_y {
+                                    if editor.selection_mode == SelectionMode::Block {
+                                        highlighted = apply_block_selection(highlighted, min_x, max_x);
+                                    } else {
+                                        // For line, highlight whole line
+                                        let new_spans: Vec<Span> = highlighted.spans.into_iter().map(|span| {
+                                            let mut style = span.style;
+                                            style = style.bg(Color::Blue).fg(Color::White);
+                                            Span { content: span.content, style }
+                                        }).collect();
+                                        highlighted = Line::from(new_spans);
+                                    }
                                 }
                             }
-                        }
-                        highlighted
-                    })
-                    .collect();
+                            highlighted
+                        })
+                        .collect()
+                };
 
                 let paragraph = Paragraph::new(lines)
                     .block(Block::default().title("vedit").borders(Borders::ALL))
@@ -368,7 +474,41 @@ pub fn run_editor(
         if event::poll(std::time::Duration::from_millis(200)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
                 if key.kind == KeyEventKind::Press {
-                    if let Some((_, prompt_type, action)) = &editor.prompt.clone() {
+                    // Handle diff mode keybindings
+                    if let DiffMode::Active { .. } = &editor.diff_mode {
+                        match key.code {
+                            KeyCode::Char('a') => {
+                                editor.accept_current_hunk();
+                            }
+                            KeyCode::Char('r') => {
+                                editor.reject_current_hunk();
+                            }
+                            KeyCode::Char('n') => {
+                                if !editor.next_hunk() {
+                                    // No more hunks, go to end
+                                    editor.prompt = Some(("No more hunks. Press 'q' to apply changes or 'q' again to cancel.".to_string(), PromptType::Message, None));
+                                }
+                            }
+                            KeyCode::Char('p') => {
+                                editor.prev_hunk();
+                            }
+                            KeyCode::Char('A') => {
+                                editor.accept_all_hunks();
+                            }
+                            KeyCode::Char('R') => {
+                                editor.reject_all_hunks();
+                            }
+                            KeyCode::Char('q') => {
+                                if editor.apply_diff_changes() {
+                                    editor.prompt = Some(("Changes applied successfully.".to_string(), PromptType::Message, None));
+                                } else {
+                                    editor.cancel_diff_mode();
+                                    editor.prompt = Some(("Changes cancelled.".to_string(), PromptType::Message, None));
+                                }
+                            }
+                            _ => {} // Ignore other keys in diff mode
+                        }
+                    } else if let Some((_, prompt_type, action)) = &editor.prompt.clone() {
                         match prompt_type {
                             PromptType::Confirm => {
                                 match key.code {
@@ -647,28 +787,13 @@ pub fn run_editor(
                                                         
                                                         match result {
                                                             Ok(response) => {
-                                                                // Save current state like help
-                                                                editor.original_buffer = Some(editor.buffer.clone());
-                                                                editor.original_filename = editor.filename.clone();
-                                                                editor.original_cursor_y = editor.cursor_y;
-                                                                editor.original_cursor_x = editor.cursor_x;
-                                                                editor.original_scroll_y = editor.scroll_y;
-                                                                editor.original_scroll_x = editor.scroll_x;
-                                                                editor.original_modified = editor.modified;
-
-                                                                // Load response into buffer
-                                                                editor.buffer = response.lines().map(|s| s.to_string()).collect();
-                                                                if editor.buffer.is_empty() {
-                                                                    editor.buffer.push(String::new());
-                                                                }
-                                                                editor.cursor_y = 0;
-                                                                editor.cursor_x = 0;
-                                                                editor.scroll_y = 0;
-                                                                editor.scroll_x = 0;
-                                                                editor.modified = true; // Since we're proposing changes
+                                                                // Create modified buffer from AI response
+                                                                let modified_buffer: Vec<String> = response.lines().map(|s| s.to_string()).collect();
+                                                                
+                                                                // Start diff mode
+                                                                editor.start_diff_mode(modified_buffer);
                                                                 editor.read_only = true;
-                                                                editor.focus = Focus::CommandLine; // Set focus to command line for confirmation
-                                                                editor.prompt = Some(("Accept AI changes? (y/n)".to_string(), PromptType::Confirm, Some(PromptAction::AcceptAi)));
+                                                                editor.focus = Focus::CommandLine;
                                                             }
                                                             Err(e) => {
                                                                 editor.prompt = Some((format!("AI error: {}", e), PromptType::Message, None));
@@ -686,15 +811,15 @@ pub fn run_editor(
                                      _ => {} // Ignore other keys in command line mode
                                 }
                  }
-             }
-         }
+}
+          }
+      }
 
          if editor.quit {
-             break;
-         }
+               break;
+           }
+       }
      }
-            }
-        }
     }
 
     disable_raw_mode().unwrap();
