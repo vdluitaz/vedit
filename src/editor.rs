@@ -49,6 +49,7 @@ pub struct Editor {
     pub editor_visible_width: usize,
     pub focus: Focus,
     pub command_buffer: String,
+    pub command_cursor: usize,
     pub overwrite_mode: bool,
     pub modified: bool,
     pub quit: bool,
@@ -138,6 +139,7 @@ impl Editor {
             editor_visible_width: 0,
             focus: Focus::Editor,
             command_buffer: String::new(),
+            command_cursor: 0,
             overwrite_mode: true,
             modified: false,
             quit: false,
@@ -544,6 +546,7 @@ replace_text: None,
             if self.history_index > 0 {
                 self.history_index -= 1;
                 self.command_buffer = self.command_history[self.history_index].clone();
+                self.command_cursor = self.command_buffer.len();
             }
         }
     }
@@ -557,6 +560,42 @@ replace_text: None,
             } else {
                 self.command_buffer = self.command_history[self.history_index].clone();
             }
+            self.command_cursor = self.command_buffer.len();
+        }
+    }
+
+    pub fn command_move_left(&mut self) {
+        if self.command_cursor > 0 {
+            self.command_cursor -= 1;
+        }
+    }
+
+    pub fn command_move_right(&mut self) {
+        if self.command_cursor < self.command_buffer.len() {
+            self.command_cursor += 1;
+        }
+    }
+
+    pub fn command_backspace(&mut self) {
+        if self.command_cursor > 0 {
+            self.command_cursor -= 1;
+            self.command_buffer.remove(self.command_cursor);
+        }
+    }
+
+    pub fn command_delete(&mut self) {
+        if self.command_cursor < self.command_buffer.len() {
+            self.command_buffer.remove(self.command_cursor);
+        }
+    }
+
+    pub fn command_insert_char(&mut self, c: char) {
+        if self.overwrite_mode && self.command_cursor < self.command_buffer.len() {
+            self.command_buffer.replace_range(self.command_cursor..=self.command_cursor, &c.to_string());
+            self.command_cursor += 1;
+        } else {
+            self.command_buffer.insert(self.command_cursor, c);
+            self.command_cursor += 1;
         }
     }
 

@@ -457,12 +457,12 @@ pub fn run_editor(
                                  chunks[1].x + msg.len() as u16,
                                  chunks[1].y,
                              );
-                         } else {
-                             f.set_cursor(
-                                 chunks[1].x + 2 + editor.command_buffer.len() as u16,
-                                 chunks[1].y,
-                             );
-                         }
+} else {
+                              f.set_cursor(
+                                  chunks[1].x + 2 + editor.command_cursor as u16,
+                                  chunks[1].y,
+                              );
+                          }
                      }
                 }
             })
@@ -546,6 +546,7 @@ pub fn run_editor(
                                         } else {
                                             editor.prompt = None;
                                             editor.command_buffer.clear();
+                                            editor.command_cursor = 0;
                                         }
                                     }
                                     _ => {}
@@ -554,6 +555,7 @@ pub fn run_editor(
                               PromptType::Message => {
                                 editor.prompt = None;
                                 editor.command_buffer.clear();
+                                            editor.command_cursor = 0;
                             }
                               PromptType::Fill => {
                                 match key.code {
@@ -561,6 +563,7 @@ pub fn run_editor(
                                         editor.fill_selection(c);
                                         editor.prompt = None;
                                         editor.command_buffer.clear();
+                                            editor.command_cursor = 0;
                                     }
                                     _ => {} // Ignore other keys in fill mode
                                 }
@@ -641,10 +644,22 @@ pub fn run_editor(
                             Focus::CommandLine => {
                                 match key.code {
                                     KeyCode::Char(c) => {
-                                        editor.command_buffer.push(c);
+                                        editor.command_insert_char(c);
                                     }
                                     KeyCode::Backspace => {
-                                        editor.command_buffer.pop();
+                                        editor.command_backspace();
+                                    }
+                                    KeyCode::Left => {
+                                        editor.command_move_left();
+                                    }
+                                    KeyCode::Right => {
+                                        editor.command_move_right();
+                                    }
+                                    KeyCode::Delete => {
+                                        editor.command_delete();
+                                    }
+                                    KeyCode::Insert => {
+                                        editor.toggle_overwrite();
                                     }
                                     KeyCode::Up => {
                                         editor.history_up();
@@ -780,6 +795,7 @@ pub fn run_editor(
                                                                 Err(_) => {
                                                                     editor.prompt = Some(("Prompt file not found. Either quote the text for a direct prompt or provide a valid filename (without .prompt extension). Press any key to continue.".to_string(), PromptType::Message, None));
                                                                     editor.command_buffer.clear();
+                                            editor.command_cursor = 0;
                                                                     continue;
                                                                 }
                                                             }
@@ -807,6 +823,7 @@ pub fn run_editor(
                                                }
                                          }
                                          editor.command_buffer.clear();
+                                            editor.command_cursor = 0;
                                      }
                                      _ => {} // Ignore other keys in command line mode
                                 }
