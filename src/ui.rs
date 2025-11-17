@@ -1,6 +1,6 @@
 use crate::ai;
 use crate::config::EditorConfig;
-use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, DiffMode, DiffLine};
+use crate::editor::{Editor, Focus, PromptAction, PromptType, SelectionMode, DiffMode, DiffLine, SearchScope};
 use crate::syntax::SyntaxEngine;
 use std::fs;
 use unicode_width::UnicodeWidthChar;
@@ -637,6 +637,13 @@ pub fn run_editor(
                                         KeyCode::Home => editor.focus = Focus::CommandLine,
                                         KeyCode::PageUp => editor.page_up(),
                                         KeyCode::PageDown => editor.page_down(),
+                                        KeyCode::F(1) => {
+                                            if editor.find_next() {
+                                                editor.prompt = Some(("Moved to next match.".to_string(), PromptType::Message, None));
+                                            } else {
+                                                editor.prompt = Some(("No more matches or no search active.".to_string(), PromptType::Message, None));
+                                            }
+                                        }
                                         _ => {} // Ignore other keys in editor mode
                                     }
                                 }
@@ -743,6 +750,16 @@ pub fn run_editor(
                                                      }
                                                   } else {
                                                       editor.prompt = Some(("Invalid line number.".to_string(), PromptType::Message, None));
+                                                  }
+                                              } else if let Some((search_text, case_sensitive)) = Editor::parse_find_command(&cmd) {
+                                                  if editor.find(&search_text, SearchScope::All, case_sensitive) {
+                                                      editor.focus = Focus::Editor;
+                                                      let case_text = if case_sensitive { "case-sensitive" } else { "case-insensitive" };
+                                                      editor.prompt = Some((format!("Found {} matches for '{}' ({})", 
+                                                          editor.search_matches.len(), search_text, case_text), 
+                                                          PromptType::Message, None));
+                                                  } else {
+                                                      editor.prompt = Some(("No matches found.".to_string(), PromptType::Message, None));
                                                   }
                                               } else if cmd == "help" {
                                                   // Save current state

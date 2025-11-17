@@ -599,6 +599,42 @@ replace_text: None,
         }
     }
 
+    pub fn parse_find_command(cmd: &str) -> Option<(String, bool)> {
+        let cmd = cmd.trim();
+        if !cmd.starts_with("find ") {
+            return None;
+        }
+        
+        let rest = cmd[5..].trim();
+        if rest.is_empty() {
+            return None;
+        }
+        
+        // Determine quote type and extract search string
+        let (search_str, remaining) = if rest.starts_with('"') {
+            // Double quoted string
+            if let Some(end_quote) = rest[1..].find('"') {
+                (&rest[1..=end_quote], &rest[end_quote + 2..])
+            } else {
+                return None;
+            }
+        } else if rest.starts_with('\'') {
+            // Single quoted string
+            if let Some(end_quote) = rest[1..].find('\'') {
+                (&rest[1..=end_quote], &rest[end_quote + 2..])
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        };
+        
+        // Check for case insensitive flag
+        let case_sensitive = !remaining.trim().contains("ins");
+        
+        Some((search_str.to_string(), case_sensitive))
+    }
+
     pub fn save_state(&mut self) {
         // Save current buffer state to undo history
         let current_state = self.buffer.clone();

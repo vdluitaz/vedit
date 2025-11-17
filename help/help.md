@@ -30,6 +30,9 @@ The command line is accessed by pressing the Home key. Type commands and press E
 - `s`/`save`: Save the current file.
 - `lnum`: Toggle line number display in the left margin.
 - `goto <line>`: Jump to the specified line number (1-based).
+- `find "text"`: Search for quoted text in the document (case-sensitive by default).
+- `find 'text'`: Search for quoted text (use single quotes if text contains double quotes).
+- `find "text" ins`: Search for quoted text case-insensitively.
 - `help`: Open this help file (read-only mode).
 
 ### Command Line Navigation
@@ -68,6 +71,7 @@ The command line is accessed by pressing the Home key. Type commands and press E
 
 - Ctrl+Up/Down/Left/Right: Move cursor (same as arrows)
 - Insert: Toggle overwrite mode
+- F1: Repeat last search (find next match)
 
 ## AI Integration
 
