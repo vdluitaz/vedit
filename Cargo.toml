@@ -1,0 +1,26 @@
+[package]
+name = "vedit"
+version = "0.1.0"
+edition = "2021"
+authors = ["Scott Vanderluit"]
+description = "A Rust-based terminal text editor inspired by THE, with block editing, syntax highlighting, and AI integration."
+license = "MIT"
+
+[dependencies]
+crossterm = "0.27"
+ratatui = "0.23"
+syntect = "5.0"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+lazy_static = "1.4"
+regex = "1.10"
+unicode-width = "0.1.11"
+
+# Optional for REXX FFI integration
+libc = "0.2"
+home = "0.5.12"
+clap = { version = "4.5.51", features = ["derive"] }
+
+# AI integration
+reqwest = { version = "0.11", features = ["json", "blocking", "rustls-tls"] }
+serde_json = "1.0"
