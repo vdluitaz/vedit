@@ -1,0 +1,103 @@
+theme = "base16-pop"
+tab_width = 4
+
+[syntax_map]
+rs = "Rust"
+py = "Python"
+md = "Markdown"
+
+# ================== AI integration ==================
+[ai]
+# Model id that vedit should use by default on startup
+default_model = "anythingllm"
+
+# Optional: behavior defaults that apply if not overridden per model
+max_tokens_default = 1024
+temperature_default = 0.2
+timeout_ms_default = 10000
+
+# Each [[ai.models]] entry describes ONE possible AI connection.
+# `id` is what the user will type in your `model` command.
+
+# ---- Example 1: local model via Ollama ----
+[[ai.models]]
+id           = "local-llama"               # used by :model local-llama
+display_name = "Local Llama 3 8B"          # optional, for UI/messages
+provider     = "ollama"                    # free-form; use however you like
+endpoint     = "http://localhost:11434/v1/chat/completions"
+model        = "llama3:8b"
+
+# Prefer env vars for secrets; vedit can read $OLLAMA_API_KEY if needed.
+# If you *really* want, you can allow api_key here too.
+api_key_env  = "OLLAMA_API_KEY"
+
+# Optional per-model overrides
+max_tokens   = 2048
+temperature  = 0.1
+timeout_ms   = 15000
+
+# ---- Example 2: OpenAI (or compatible) ----
+[[ai.models]]
+id           = "openai-gpt4-mini"
+display_name = "OpenAI GPT-4.1 Mini"
+provider     = "openai"
+endpoint     = "https://api.openai.com/v1/chat/completions"
+model        = "gpt-4.1-mini"
+api_key_env  = "OPENAI_API_KEY"
+
+# Uses the [ai] defaults because we haven’t overridden anything
+
+# ---- Example 3: “OpenAI-compatible” server (e.g., LM Studio, vLLM, etc.) ----
+[[ai.models]]
+id           = "lab-server"
+display_name = "Lab vLLM Server"
+provider     = "openai-compatible"
+endpoint     = "http://127.0.0.1:8000/v1/chat/completions"
+model        = "my-finetune-01"
+api_key_env  = "LAB_SERVER_API_KEY"
+
+# You could also support extra headers if needed:
+# headers = { "X-Custom-Header" = "value" }
+
+[[ai.models]]
+id           = "anythingllm"
+display_name = "AnythingLLM"
+provider     = "anythingllm"
+
+endpoint     = "http://localhost:3001/api/v1/workspace/sysadmin/chat"
+
+# Model name must match what AnythingLLM exposes in the dropdown.
+# Common examples: "gpt-4o-mini", "llama3", "mistral", etc.
+model        = "meta-llama-3.1-8b-instruct"
+
+# AnythingLLM uses a WORKSPACE API key, not a user key.
+api_key_env  = "Bearer VG1Y609-GMWMC81-HFWR4HM-BRR9SZE"
+
+# Optional overrides
+temperature  = 0.1
+max_tokens   = 2048
+timeout_ms   = 20000
+
+# in bash
+# export ANYTHINGLLM_API_KEY="sk-workspace-123..."
+
+[[ai.models]]
+id           = "lmstudio"
+display_name = "LM Studio Local Server"
+provider     = "lm-studio"
+
+# LM Studio’s OpenAI-compatible REST server
+endpoint     = "http://localhost:1234/v1/chat/completions"
+
+# Must exactly match the model name LM Studio shows
+model        = "llama-3-8b-instruct"
+
+# LM Studio usually requires no API key
+api_key_env  = ""
+
+temperature  = 0.1
+max_tokens   = 2048
+timeout_ms   = 20000
+
+# if needed
+# api_key_env = "LMSTUDIO_API_KEY"
