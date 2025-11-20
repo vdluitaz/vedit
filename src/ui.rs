@@ -55,15 +55,12 @@ fn apply_block_selection(line: Line, min_x: usize, max_x: usize) -> Line {
             let ch_end = ch_start + ch_width;
             span_col += ch_width;
 
-            // Find the next char for end
             let next_byte = char_indices.peek().map(|(b, _)| *b).unwrap_or(span_text.len());
             let ch_text = &span_text[byte_idx..next_byte];
 
             if ch_end <= min_x || ch_start >= max_x {
-                // Outside selection
                 new_spans.push(Span::styled(ch_text.to_string(), span.style));
             } else {
-                // Inside or overlapping
                 let mut style = span.style;
                 style = style.bg(Color::Green).fg(Color::White);
                 new_spans.push(Span::styled(ch_text.to_string(), style));
@@ -71,6 +68,19 @@ fn apply_block_selection(line: Line, min_x: usize, max_x: usize) -> Line {
         }
         current_col += span_col;
     }
+
+    if max_x > current_col {
+        if min_x > current_col {
+            let gap_len = min_x - current_col;
+            new_spans.push(Span::styled(" ".repeat(gap_len), Style::default()));
+            current_col = min_x;
+        }
+        let virtual_len = max_x - current_col;
+        if virtual_len > 0 {
+            new_spans.push(Span::styled(" ".repeat(virtual_len), Style::default().bg(Color::Green).fg(Color::White)));
+        }
+    }
+
     Line::from(new_spans)
 }
 
@@ -442,7 +452,14 @@ pub fn run_editor(
                                             style = style.bg(Color::Blue).fg(Color::White);
                                             Span { content: span.content, style }
                                         }).collect();
-                                        highlighted = Line::from(new_spans);
+                                        let mut highlighted_line = Line::from(new_spans);
+                                        // Pad to selection width for virtual space
+                                        let current_width = highlighted_line.width();
+                                        if current_width < max_x {
+                                            let pad_len = max_x - current_width;
+                                            highlighted_line.spans.push(Span::styled(" ".repeat(pad_len), Style::default().bg(Color::Blue).fg(Color::White)));
+                                        }
+                                        highlighted = highlighted_line;
                                     }
                                 }
                             }
