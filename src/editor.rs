@@ -290,30 +290,30 @@ replace_text: None,
         if self.read_only { return; }
         // Save state before making changes
         self.save_state();
-        
-        let line = &mut self.buffer[self.cursor_y];
-        let line_width = line.width();
-        if self.virtual_cursor && self.cursor_x > line_width {
-            // In virtual space, do nothing
-            return;
-        }
+
         if self.cursor_x > 0 {
             let line = &mut self.buffer[self.cursor_y];
-            let byte_index = column_to_byte_index(line, self.cursor_x);
-
-            if byte_index > 0 {
-                // Find the start of the char before byte_index
-                let mut prev_char_start = 0;
-                let mut char_to_remove = ' ';
-                for (idx, c) in line.char_indices() {
-                    if idx >= byte_index {
-                        break;
+            let line_width = line.width();
+            if self.cursor_x <= line_width {
+                // Delete the char before cursor
+                let byte_index = column_to_byte_index(line, self.cursor_x);
+                if byte_index > 0 {
+                    // Find the start of the char before byte_index
+                    let mut prev_char_start = 0;
+                    let mut char_to_remove = ' ';
+                    for (idx, c) in line.char_indices() {
+                        if idx >= byte_index {
+                            break;
+                        }
+                        prev_char_start = idx;
+                        char_to_remove = c;
                     }
-                    prev_char_start = idx;
-                    char_to_remove = c;
+                    line.remove(prev_char_start);
+                    self.cursor_x -= char_to_remove.to_string().width();
                 }
-                line.remove(prev_char_start);
-                self.cursor_x -= char_to_remove.to_string().width();
+            } else {
+                // In virtual space, just move left
+                self.cursor_x -= 1;
             }
         } else if self.cursor_y > 0 {
             let prev_line_width = self.buffer[self.cursor_y - 1].width();
