@@ -33,6 +33,7 @@ The command line is accessed by pressing the Home key. Type commands and press E
 - `find "text"`: Search for quoted text in the document (case-sensitive by default).
 - `find 'text'`: Search for quoted text (use single quotes if text contains double quotes).
 - `find "text" ins`: Search for quoted text case-insensitively.
+- `prompt <prompt or filename>`: Send a prompt to the AI, either as a quoted string or from a prompts/filename.prompt file.
 - `help`: Open this help file (read-only mode).
 
 ### Command Line Navigation
