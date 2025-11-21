@@ -36,6 +36,8 @@ Available commands:
 - find "text" ins: Search for quoted text case-insensitively.
 - prompt <prompt or filename>: Send a prompt to the AI, either as a quoted string or from a prompts/filename.prompt file.
 - help: Open this help file (read-only mode).
+- undo: Undo the last edit action.
+- redo: Redo the last undone action.
 
 In command line mode:
 - Up/Down arrows: Navigate command history (recall previous/next commands)

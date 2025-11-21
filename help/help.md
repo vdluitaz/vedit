@@ -35,6 +35,8 @@ The command line is accessed by pressing the Home key. Type commands and press E
 - `find "text" ins`: Search for quoted text case-insensitively.
 - `prompt <prompt or filename>`: Send a prompt to the AI, either as a quoted string or from a prompts/filename.prompt file.
 - `help`: Open this help file (read-only mode).
+- `undo`: Undo the last edit action.
+- `redo`: Redo the last undone action.
 
 ### Command Line Navigation
 
